@@ -5,6 +5,7 @@ from src.geometry import get_normalized_distance, get_finger_flexion
 from src.smoothing import HandSmoother
 from src.state_machine import GestureStateMachine
 from src.position_tracker import PositionTracker
+from src.osc_sender import OSCSender
 
 def main():
     camera = CameraStream(camera_index=0)
@@ -13,9 +14,11 @@ def main():
     smoother = HandSmoother(min_cutoff=1.0, beta=0.5)
 
     state_machines = {}
-    pos_tracker = PositionTracker(z_min_palm_px=45.0, z_max_palm_px=250.0)
+    pos_tracker = PositionTracker()
+    osc = OSCSender(ip="127.0.0.1", port=8000)
 
     print("Webcam started. Press 'q' on your keyboard to quit.")
+    print("OSC streaming to 127.0.0.1:8000")
 
     while True:
         frame = camera.get_frame()
@@ -47,24 +50,19 @@ def main():
                 smooth_ring = smoother.smooth(hand_index, "ring_flexion", raw_ring_flexion)
                 smooth_pinky = smoother.smooth(hand_index, "pinky_flexion", raw_pinky_flexion)
 
-                # Create a state machine for this hand if we haven't seen it before.
                 if hand_index not in state_machines:
                     state_machines[hand_index] = GestureStateMachine(debounce_frames=5)
 
-                # Feed the smoothed angles into the state machine.
                 transition = state_machines[hand_index].update(
                     smooth_index, smooth_middle, smooth_ring, smooth_pinky
                 )
 
-                # Bridge: translate the state machine's string output into
-                # the event dict format the position tracker expects.
-                # Any transition counts as an ENTER into the new gesture.
-                # The position tracker internally checks whether that gesture
-                # is a clutch gesture or not.
                 event = None
                 if transition is not None:
                     new_gesture = transition.split(" -> ")[1]
                     event = {"type": "ENTER", "gesture": new_gesture}
+                    osc.send_gesture(hand_index, new_gesture)
+                    print(f">>> Hand {hand_index} GESTURE: {transition}")
 
                 pos = pos_tracker.update(
                     hand_id=hand_index,
@@ -74,24 +72,18 @@ def main():
                     frame_h=frame.shape[0],
                 )
 
-                # Print gesture transitions.
-                if transition is not None:
-                    print(f">>> Hand {hand_index} GESTURE: {transition}")
-
-                # Print slider data only when an axis is actively clutched.
-                if pos is not None and pos["active_axis"] is not None:
-                    axis = pos["active_axis"]
-                    value = pos[axis]
-                    gesture = pos["gesture"]
-                    print(f"  Hand {hand_index} [{gesture}] {axis.upper()}={value:.3f}")
+                # Send each active axis over OSC.
+                if pos is not None and pos["active_axes"]:
+                    for axis in pos["active_axes"]:
+                        value = pos[axis]
+                        osc.send_slider(hand_index, axis, value)
 
         else:
-            # No hands detected this frame — notify all known state machines
-            # and the position tracker.
             for hand_id, machine in state_machines.items():
                 drop_event = machine.hand_missing()
                 if drop_event is not None:
                     print(f">>> Hand {hand_id} EVENT: {drop_event}")
+                    osc.send_event(hand_id, "DROP")
 
                     pos_tracker.update(
                         hand_id=hand_id,

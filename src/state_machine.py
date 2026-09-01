@@ -57,7 +57,7 @@ class GestureStateMachine:
                     self.finger_straight[finger] = False
             else:
                 # Currently not straight — only grant if it clearly passes the threshold
-                if angle > 150:
+                if angle > 170:
                     self.finger_straight[finger] = True
 
             # Curled detection with hysteresis
@@ -93,7 +93,7 @@ class GestureStateMachine:
             return GestureState.POINT
 
         # PEACE: index AND middle straight, ring and pinky curled.
-        if index_straight and middle_straight and ring_curled and pinky_curled:
+        if index_straight and middle_straight and ring_straight and pinky_curled:
             return GestureState.PEACE
 
         # CLOSED_FIST: middle, ring, pinky all curled.
