@@ -11,10 +11,9 @@ from src.smoothing import OneEuroFilter
 # Which axes each gesture controls.
 # If a gesture isn't in this dict, it doesn't clutch any slider.
 GESTURE_AXIS_MAP = {
-    "CLOSED_FIST": ["y"],          # volume
-    "OPEN_PALM":   ["x"],          # reverb depth
-    "POINT":       ["x"],          # FX preset
-    "PEACE":       ["x", "y"],     # pitch shift + vibrato
+    "CLOSED_FIST": ["x", "y"],    # pitch shift + volume
+    "OPEN_PALM":   ["y"],          # reverb depth
+    "POINT":       ["x", "y"],    # filter cutoff + vibrato
 }
 
 

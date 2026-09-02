@@ -5,15 +5,12 @@ class GestureState:
     OPEN_PALM = 1
     CLOSED_FIST = 2
     POINT = 3
-    PEACE = 4
 
-    # A quick lookup so we can print human-readable names in the terminal.
     NAMES = {
         0: "UNKNOWN",
         1: "OPEN_PALM",
         2: "CLOSED_FIST",
         3: "POINT",
-        4: "PEACE",
     }
 
 
@@ -91,10 +88,6 @@ class GestureStateMachine:
         # POINT: index straight, other three curled.
         if index_straight and middle_curled and ring_curled and pinky_curled:
             return GestureState.POINT
-
-        # PEACE: index AND middle straight, ring and pinky curled.
-        if index_straight and middle_straight and ring_straight and pinky_curled:
-            return GestureState.PEACE
 
         # CLOSED_FIST: middle, ring, pinky all curled.
         # Index gets extra cushion because thumb occlusion during a fist

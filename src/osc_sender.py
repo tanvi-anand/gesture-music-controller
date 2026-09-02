@@ -64,15 +64,3 @@ class OSCSender:
         """
         address = f"/hand/{hand_id}/slider/{axis}"
         self.client.send_message(address, float(value))
-
-    def send_vibrato(self, hand_id, value):
-        """
-        Send the index finger flexion value (vibrato dial).
-        Called every frame regardless of gesture state.
-
-        Args:
-            hand_id: int (0 or 1)
-            value:   float — 0.0 (straight / no vibrato) to 1.0 (fully curled / max vibrato)
-        """
-        address = f"/hand/{hand_id}/vibrato"
-        self.client.send_message(address, float(value))
