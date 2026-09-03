@@ -9,8 +9,8 @@ Hold a gesture, move your hand, and control music in real time:
 | Gesture | Axes | Controls |
 |---------|------|----------|
 | **CLOSED_FIST** | X, Y | Pitch shift + Volume |
-| **OPEN_PALM** | Y | Reverb depth |
-| **POINT** | X, Y | Filter cutoff + Vibrato |
+| **OPEN_PALM** | X | Filter cutoff |
+| **POINT** | X, Y | Reverb depth + Pitch shift |
 
 - Position tracking only activates while a gesture is held, preventing network flooding during idle states.
 - Dropping a hand from frame fires a `DROP` event, which can trigger actions like stopping playback.
@@ -46,14 +46,14 @@ A `GestureStateMachine` that classifies finger flexion data into gesture states 
 Uses 3 frame debounce and hysteresis dead zones between thresholds to eliminate flickering at gesture boundaries. Fires a `DROP` event when a hand leaves the frame.
 
 ### `position_tracker.py`
-Converts hand position to normalised axis values using a clutched system - position math only runs while a specific gesture is active. Each gesture maps to its own axes. Calibrated to a real camera's palm size range (~45–250px) for Z axis depth estimation.
+Converts hand position to normalised axis values using a clutched system - position math only runs while a specific gesture is active. Each gesture maps to its own axes, preventing unintended control changes during gesture transitions.
 
 ### `osc_sender.py`
-Sends control signals over OSC to localhost port 8000 using `python-osc`. Designed to connect to REAPER or any OSC compatible DAW.
+Sends control signals over OSC to localhost port 8000 using `python-osc`. Each gesture+axis combination gets a unique OSC address (e.g. `/hand/0/fist/y` for volume, `/hand/0/palm/y` for filter cutoff), so the receiving DAW can bind each control independently without overlap. Designed to connect to REAPER or any OSC compatible DAW.
 
 ## Design Decisions
 
-**Why OSC over MIDI?** OSC matches the real Mi.Mu architecture and supports continuous floating point control values. MIDI's 7 bit resolution (0–127) would quantise the smooth gesture dta.
+**Why OSC over MIDI?** OSC matches the real Mi.Mu architecture and supports continuous floating point control values. MIDI's 7 bit resolution (0–127) would quantise the smooth gesture data.
 
 **Why raw geometry instead of a gesture recognition library?** The goal is controllable, real time musical expression - not just gesture classification. Building the geometry and state machine from scratch gives full control over thresholds, debounce timing, and the relationship between hand movement and musical output.
 
@@ -62,6 +62,8 @@ Sends control signals over OSC to localhost port 8000 using `python-osc`. Design
 **Why One Euro Filter?** It adapts its cutoff frequency based on signal speed - slow movements get heavily smoothed, fast movements pass through with minimal lag. This is critical for musical expression where both precision and responsiveness matter.
 
 **Why hysteresis thresholds?** A single threshold for "finger is straight" would cause rapid flickering when a finger hovers near the boundary. Separate entry (>160°) and exit (<130°) thresholds create a dead zone that eliminates false triggers without adding latency.
+
+**Why gesture-specific OSC addresses?** Different gestures can control the same axis (e.g. CLOSED_FIST Y = volume, OPEN_PALM Y = filter cutoff). Using `/hand/{id}/{gesture}/{axis}` instead of `/hand/{id}/slider/{axis}` gives the receiving DAW a unique address per control, eliminating parameter conflicts when switching gestures.
 
 ## Setup
 
@@ -91,7 +93,7 @@ python main.py
 python test_osc_receiver.py
 ```
 
-For DAW integration, configure your DAW to receive OSC on localhost port 8000.
+For DAW integration, configure your DAW to receive OSC on localhost port 8000. In REAPER, add an OSC control surface under Options > Preferences > Control/OSC/Web, set to "Local port [receive only]" on port 8000, and use FX Learn to bind each gesture address to a plugin parameter.
 
 ## Tech Stack
 

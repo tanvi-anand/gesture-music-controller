@@ -3,7 +3,7 @@ from src.capture import CameraStream
 from src.hand_tracker import HandTracker, HandIdentityTracker
 from src.geometry import get_normalized_distance, get_finger_flexion
 from src.smoothing import HandSmoother
-from src.state_machine import GestureStateMachine
+from src.state_machine import GestureStateMachine, GestureState
 from src.position_tracker import PositionTracker
 from src.osc_sender import OSCSender
 
@@ -76,7 +76,8 @@ def main():
                 if pos is not None and pos["active_axes"]:
                     for axis in pos["active_axes"]:
                         value = pos[axis]
-                        osc.send_slider(hand_index, axis, value)
+                        gesture_name =  GestureState.NAMES[state_machines[hand_index].confirmed_state]
+                        osc.send_slider(hand_index, gesture_name, axis, value)
 
         else:
             for hand_id, machine in state_machines.items():
