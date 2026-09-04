@@ -4,14 +4,15 @@ Sends gesture events and clutched slider values to a receiving
 application over UDP on localhost port 8000.
 
 OSC address schema:
-    /hand/{id}/gesture           → string (gesture name on transition)
-    /hand/{id}/event             → string ("DROP" on hand exit)
-    /hand/{id}/{gesture}/{axis}  → float  (0.0–1.0 clutched axis value)
+    /hand/{id}/gesture/{gesture} → float 1.0 (fires once on transition)
+    /hand/{id}/event/{event}     → float 1.0 (fires once, e.g. DROP)
+    /hand/{id}/{gesture}/{axis}  → float 0.0–1.0 (continuous slider)
 
-Each gesture+axis combo gets its own unique address so the receiving
-application (e.g. REAPER) can bind each one to a different parameter
-without overlap.  For example, /hand/0/fist/y and /hand/0/palm/y are
-separate addresses even though both use the Y axis.
+Every message type gets its own unique address so the receiving
+application (e.g. REAPER) can bind each one independently.
+Gesture transitions and events send 1.0 as a trigger pulse —
+REAPER's action system only needs to see "a message arrived"
+to fire the bound action.
 """
 
 from pythonosc import udp_client
@@ -47,12 +48,18 @@ class OSCSender:
         Send a discrete gesture transition event.
         Called once per transition, not every frame.
 
+        Each gesture gets its own address so the receiving application
+        can bind different actions to different gestures.  Sends 1.0
+        as a trigger pulse — REAPER's action binding only needs to
+        see "a message arrived at this address" to fire.
+
         Args:
             hand_id:       int (0 or 1)
             gesture_name:  str like "CLOSED_FIST", "OPEN_PALM", etc.
         """
-        address = f"/hand/{hand_id}/gesture"
-        self.client.send_message(address, gesture_name)
+        short_name = GESTURE_OSC_NAMES.get(gesture_name, gesture_name.lower())
+        address = f"/hand/{hand_id}/gesture/{short_name}"
+        self.client.send_message(address, 1.0)
 
     def send_event(self, hand_id, event_name):
         """
@@ -62,8 +69,8 @@ class OSCSender:
             hand_id:    int (0 or 1)
             event_name: str like "DROP"
         """
-        address = f"/hand/{hand_id}/event"
-        self.client.send_message(address, event_name)
+        address = f"/hand/{hand_id}/event/{event_name.lower()}"
+        self.client.send_message(address, 1.0)
 
     def send_slider(self, hand_id, gesture_name, axis, value):
         """
