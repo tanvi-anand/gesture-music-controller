@@ -14,6 +14,7 @@ def main():
     smoother = HandSmoother(min_cutoff=1.0, beta=0.5)
 
     state_machines = {}
+    hand_frame_counts = {}
     pos_tracker = PositionTracker()
     osc = OSCSender(ip="127.0.0.1", port=8000)
 
@@ -53,6 +54,8 @@ def main():
                 if hand_index not in state_machines:
                     state_machines[hand_index] = GestureStateMachine(debounce_frames=5)
 
+                hand_frame_counts[hand_index] = hand_frame_counts.get(hand_index, 0) + 1
+
                 transition = state_machines[hand_index].update(
                     smooth_index, smooth_middle, smooth_ring, smooth_pinky
                 )
@@ -72,20 +75,34 @@ def main():
                     frame_h=frame.shape[0],
                 )
 
-                # Send each active axis over OSC.
                 if pos is not None and pos["active_axes"]:
                     for axis in pos["active_axes"]:
                         value = pos[axis]
                         gesture_name = GestureState.NAMES[state_machines[hand_index].confirmed_state]
                         osc.send_slider(hand_index, gesture_name, axis, value)
 
-            # Fire DROP for hands that had state machines but weren't
-            # seen this frame (e.g. one hand left while the other stayed).
             seen_ids = {h[0] for h in stable_hands}
             for hand_id, machine in state_machines.items():
                 if hand_id not in seen_ids:
                     drop_event = machine.hand_missing()
                     if drop_event is not None:
+                        if hand_frame_counts.get(hand_id, 0) >= 10:
+                            print(f">>> Hand {hand_id} EVENT: {drop_event}")
+                            osc.send_event(hand_id, "DROP")
+                            pos_tracker.update(
+                                hand_id=hand_id,
+                                event={"type": "DROP", "gesture": ""},
+                                landmarks=None,
+                                frame_w=frame.shape[1],
+                                frame_h=frame.shape[0],
+                            )
+                        hand_frame_counts[hand_id] = 0
+
+        else:
+            for hand_id, machine in state_machines.items():
+                drop_event = machine.hand_missing()
+                if drop_event is not None:
+                    if hand_frame_counts.get(hand_id, 0) >= 10:
                         print(f">>> Hand {hand_id} EVENT: {drop_event}")
                         osc.send_event(hand_id, "DROP")
                         pos_tracker.update(
@@ -95,21 +112,7 @@ def main():
                             frame_w=frame.shape[1],
                             frame_h=frame.shape[0],
                         )
-
-        else:
-            for hand_id, machine in state_machines.items():
-                drop_event = machine.hand_missing()
-                if drop_event is not None:
-                    print(f">>> Hand {hand_id} EVENT: {drop_event}")
-                    osc.send_event(hand_id, "DROP")
-
-                    pos_tracker.update(
-                        hand_id=hand_id,
-                        event={"type": "DROP", "gesture": ""},
-                        landmarks=None,
-                        frame_w=frame.shape[1],
-                        frame_h=frame.shape[0],
-                    )
+                    hand_frame_counts[hand_id] = 0
 
         cv2.imshow("Webcam Feed - Press Q to Quit", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
