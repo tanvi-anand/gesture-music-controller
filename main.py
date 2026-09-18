@@ -76,8 +76,25 @@ def main():
                 if pos is not None and pos["active_axes"]:
                     for axis in pos["active_axes"]:
                         value = pos[axis]
-                        gesture_name =  GestureState.NAMES[state_machines[hand_index].confirmed_state]
+                        gesture_name = GestureState.NAMES[state_machines[hand_index].confirmed_state]
                         osc.send_slider(hand_index, gesture_name, axis, value)
+
+            # Fire DROP for hands that had state machines but weren't
+            # seen this frame (e.g. one hand left while the other stayed).
+            seen_ids = {h[0] for h in stable_hands}
+            for hand_id, machine in state_machines.items():
+                if hand_id not in seen_ids:
+                    drop_event = machine.hand_missing()
+                    if drop_event is not None:
+                        print(f">>> Hand {hand_id} EVENT: {drop_event}")
+                        osc.send_event(hand_id, "DROP")
+                        pos_tracker.update(
+                            hand_id=hand_id,
+                            event={"type": "DROP", "gesture": ""},
+                            landmarks=None,
+                            frame_w=frame.shape[1],
+                            frame_h=frame.shape[0],
+                        )
 
         else:
             for hand_id, machine in state_machines.items():
